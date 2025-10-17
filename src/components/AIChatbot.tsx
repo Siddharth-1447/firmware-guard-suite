@@ -9,13 +9,28 @@ interface Message {
   content: string;
 }
 
+const STORAGE_KEY = 'cyra_chat_history';
+
 export const AIChatbot = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Hello! I\'m Cyra, your CryptoFinder AI Assistant. I can help you understand cryptographic algorithms, firmware security, and best practices. What would you like to know?'
+  // Load chat history from localStorage
+  const loadHistory = (): Message[] => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
     }
-  ]);
+    return [
+      {
+        role: 'assistant',
+        content: 'Hello! I\'m Cyra, your CryptoFinder AI Assistant. I can help you understand cryptographic algorithms, firmware security, and best practices. What would you like to know?'
+      }
+    ];
+  };
+
+  const [messages, setMessages] = useState<Message[]>(loadHistory());
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -24,35 +39,84 @@ export const AIChatbot = () => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const getResponse = (question: string): string => {
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (error) {
+      console.error('Failed to save chat history:', error);
+    }
+  }, [messages]);
+
+  const getResponses = (question: string): string[] => {
+    const responses: string[] = [];
     const q = question.toLowerCase();
     
-    if (q.includes('aes')) {
-      return 'AES (Advanced Encryption Standard) is a symmetric encryption algorithm widely used for secure data transmission. AES-256 uses a 256-bit key and is considered highly secure for most applications. It\'s fast, efficient, and approved by the NSA for top-secret information.';
-    }
-    if (q.includes('rsa')) {
-      return 'RSA is an asymmetric cryptographic algorithm used for secure data transmission and digital signatures. RSA-2048 is currently considered secure, though RSA-4096 is recommended for long-term security. It uses public and private key pairs for encryption and decryption.';
-    }
-    if (q.includes('sha')) {
-      return 'SHA (Secure Hash Algorithm) is a family of cryptographic hash functions. SHA-1 is now considered weak and deprecated. SHA-256 and SHA-3 are currently recommended for secure applications. Hash functions are one-way functions used for data integrity verification.';
-    }
-    if (q.includes('firmware') || q.includes('security')) {
-      return 'Firmware security is critical for IoT and embedded devices. Key concerns include: using strong encryption (AES-256), secure boot processes, regular updates, avoiding deprecated algorithms (MD5, SHA-1, DES), and implementing proper authentication mechanisms.';
-    }
-    if (q.includes('md5')) {
-      return 'MD5 is a cryptographic hash function that is now considered broken and unsuitable for security purposes. It has known collision vulnerabilities. Use SHA-256 or SHA-3 instead for secure hashing operations.';
-    }
-    if (q.includes('encryption') || q.includes('algorithm')) {
-      return 'Modern encryption algorithms include: AES (symmetric), RSA/ECC (asymmetric), and ChaCha20 (stream cipher). For hashing, use SHA-256 or SHA-3. Always use well-established algorithms and avoid creating custom cryptography.';
-    }
-    if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
-      return 'Hello! I\'m here to help you understand cryptographic concepts and firmware security. Feel free to ask me about AES, RSA, SHA, or any other security-related questions!';
-    }
-    if (q.includes('help')) {
-      return 'I can help you with:\n• Cryptographic algorithms (AES, RSA, SHA, etc.)\n• Firmware security best practices\n• Algorithm strength assessment\n• Encryption vs hashing\n• Security recommendations\n\nJust ask me anything about cryptography or security!';
+    // Knowledge base with keywords and responses
+    const knowledgeBase = [
+      {
+        keywords: ['aes', 'advanced encryption standard'],
+        response: 'AES (Advanced Encryption Standard) is a symmetric encryption algorithm widely used for secure data transmission. AES-256 uses a 256-bit key and is considered highly secure for most applications. It\'s fast, efficient, and approved by the NSA for top-secret information.'
+      },
+      {
+        keywords: ['rsa'],
+        response: 'RSA is an asymmetric cryptographic algorithm used for secure data transmission and digital signatures. RSA-2048 is currently considered secure, though RSA-4096 is recommended for long-term security. It uses public and private key pairs for encryption and decryption.'
+      },
+      {
+        keywords: ['sha', 'secure hash'],
+        response: 'SHA (Secure Hash Algorithm) is a family of cryptographic hash functions. SHA-1 is now considered weak and deprecated. SHA-256 and SHA-3 are currently recommended for secure applications. Hash functions are one-way functions used for data integrity verification.'
+      },
+      {
+        keywords: ['ecc', 'elliptic curve'],
+        response: 'ECC (Elliptic Curve Cryptography) provides the same level of security as RSA but with smaller key sizes, making it more efficient. ECC-256 is equivalent to RSA-3072 in terms of security. It\'s widely used in modern applications and mobile devices.'
+      },
+      {
+        keywords: ['firmware', 'iot', 'embedded'],
+        response: 'Firmware security is critical for IoT and embedded devices. Key concerns include: using strong encryption (AES-256), secure boot processes, regular updates, avoiding deprecated algorithms (MD5, SHA-1, DES), and implementing proper authentication mechanisms.'
+      },
+      {
+        keywords: ['md5'],
+        response: 'MD5 is a cryptographic hash function that is now considered broken and unsuitable for security purposes. It has known collision vulnerabilities where two different inputs can produce the same hash. Use SHA-256 or SHA-3 instead for secure hashing operations.'
+      },
+      {
+        keywords: ['des', 'data encryption standard'],
+        response: 'DES (Data Encryption Standard) is an obsolete encryption algorithm that uses a 56-bit key, which is too short by modern standards. It can be broken in hours with modern computing power. Use AES instead. 3DES is slightly better but still being phased out.'
+      },
+      {
+        keywords: ['encryption', 'cipher'],
+        response: 'Modern encryption algorithms include: AES (symmetric), RSA/ECC (asymmetric), and ChaCha20 (stream cipher). For hashing, use SHA-256 or SHA-3. Always use well-established algorithms and avoid creating custom cryptography.'
+      },
+      {
+        keywords: ['hello', 'hi', 'hey', 'greetings'],
+        response: 'Hello! I\'m here to help you understand cryptographic concepts and firmware security. Feel free to ask me about AES, RSA, SHA, ECC, or any other security-related questions!'
+      },
+      {
+        keywords: ['help', 'what can you do'],
+        response: 'I can help you with:\n• Cryptographic algorithms (AES, RSA, SHA, ECC, etc.)\n• Firmware security best practices\n• Algorithm strength assessment\n• Encryption vs hashing\n• Security recommendations\n• Vulnerability analysis\n\nJust ask me anything about cryptography or security!'
+      },
+      {
+        keywords: ['weak', 'vulnerable', 'insecure'],
+        response: 'Weak or deprecated algorithms include: MD5, SHA-1, DES, RC4, and RSA-1024. These should be avoided in production systems. Replace them with: SHA-256/SHA-3 for hashing, AES-256 for symmetric encryption, and RSA-2048/4096 or ECC for asymmetric encryption.'
+      },
+      {
+        keywords: ['strong', 'secure', 'safe', 'recommended'],
+        response: 'Strong, currently recommended algorithms include: AES-256 for symmetric encryption, RSA-2048/4096 or ECC-256+ for asymmetric encryption, and SHA-256/SHA-3 for hashing. Always use well-tested libraries and keep them updated.'
+      }
+    ];
+    
+    // Check each keyword pattern
+    knowledgeBase.forEach(item => {
+      if (item.keywords.some(keyword => q.includes(keyword))) {
+        responses.push(item.response);
+      }
+    });
+    
+    // If no matches found, return a default response
+    if (responses.length === 0) {
+      responses.push('That\'s an interesting question! For specific guidance on cryptographic implementations, I recommend consulting security documentation or analyzing your firmware with our tool. I specialize in common algorithms like AES, RSA, SHA, ECC, and general security best practices.');
     }
     
-    return 'That\'s an interesting question! For specific guidance on cryptographic implementations, I recommend consulting security documentation or analyzing your firmware with our tool. I specialize in common algorithms like AES, RSA, SHA, and general security best practices.';
+    return responses;
   };
 
   const handleSend = () => {
@@ -64,11 +128,16 @@ export const AIChatbot = () => {
     setIsTyping(true);
 
     setTimeout(() => {
-      const response = getResponse(input);
-      const assistantMessage: Message = { role: 'assistant', content: response };
+      // Get multiple responses for potentially multiple questions
+      const responses = getResponses(input);
+      
+      // Combine responses if multiple matches found
+      const combinedResponse = responses.join('\n\n');
+      
+      const assistantMessage: Message = { role: 'assistant', content: combinedResponse };
       setMessages(prev => [...prev, assistantMessage]);
       setIsTyping(false);
-    }, 1000);
+    }, 800);
   };
 
   return (

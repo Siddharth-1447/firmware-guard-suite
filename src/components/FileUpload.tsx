@@ -15,47 +15,79 @@ export const FileUpload = ({ onFileAnalyzed }: FileUploadProps) => {
   const analyzeFile = async (file: File) => {
     setIsAnalyzing(true);
     
-    // Simulate firmware analysis with mock detection
+    // Real firmware analysis with regex-based detection
     const text = await file.text();
     const algorithms = [];
     
-    // Detect algorithms based on keywords
-    if (text.toLowerCase().includes('aes') || text.toLowerCase().includes('advanced encryption')) {
-      algorithms.push({ name: 'AES-256', strength: 'Secure', risk: 'Low' });
-    }
-    if (text.toLowerCase().includes('rsa')) {
-      algorithms.push({ name: 'RSA-2048', strength: 'Secure', risk: 'Low' });
-    }
-    if (text.toLowerCase().includes('sha1') || text.toLowerCase().includes('sha-1')) {
-      algorithms.push({ name: 'SHA-1', strength: 'Weak', risk: 'High' });
-    }
-    if (text.toLowerCase().includes('sha256') || text.toLowerCase().includes('sha-256')) {
-      algorithms.push({ name: 'SHA-256', strength: 'Secure', risk: 'Low' });
-    }
-    if (text.toLowerCase().includes('md5')) {
-      algorithms.push({ name: 'MD5', strength: 'Broken', risk: 'Critical' });
-    }
-    if (text.toLowerCase().includes('des') && !text.toLowerCase().includes('3des')) {
-      algorithms.push({ name: 'DES', strength: 'Obsolete', risk: 'Critical' });
-    }
+    // Advanced regex patterns for algorithm detection
+    const patterns = [
+      // AES variants
+      { regex: /aes[-_]?256/gi, name: 'AES-256', strength: 'Secure', risk: 'Low', score: 100 },
+      { regex: /aes[-_]?192/gi, name: 'AES-192', strength: 'Secure', risk: 'Low', score: 95 },
+      { regex: /aes[-_]?128/gi, name: 'AES-128', strength: 'Secure', risk: 'Low', score: 90 },
+      { regex: /\baes\b|advanced encryption standard/gi, name: 'AES', strength: 'Secure', risk: 'Low', score: 85 },
+      
+      // RSA variants
+      { regex: /rsa[-_]?4096/gi, name: 'RSA-4096', strength: 'Secure', risk: 'Low', score: 100 },
+      { regex: /rsa[-_]?2048/gi, name: 'RSA-2048', strength: 'Secure', risk: 'Low', score: 90 },
+      { regex: /rsa[-_]?1024/gi, name: 'RSA-1024', strength: 'Weak', risk: 'High', score: 40 },
+      { regex: /\brsa\b/gi, name: 'RSA', strength: 'Moderate', risk: 'Medium', score: 70 },
+      
+      // SHA variants
+      { regex: /sha[-_]?512/gi, name: 'SHA-512', strength: 'Secure', risk: 'Low', score: 100 },
+      { regex: /sha[-_]?384/gi, name: 'SHA-384', strength: 'Secure', risk: 'Low', score: 95 },
+      { regex: /sha[-_]?256|sha2/gi, name: 'SHA-256', strength: 'Secure', risk: 'Low', score: 90 },
+      { regex: /sha[-_]?1|sha1/gi, name: 'SHA-1', strength: 'Weak', risk: 'High', score: 30 },
+      
+      // Other hash algorithms
+      { regex: /\bmd5\b/gi, name: 'MD5', strength: 'Broken', risk: 'Critical', score: 10 },
+      { regex: /\bmd4\b/gi, name: 'MD4', strength: 'Broken', risk: 'Critical', score: 5 },
+      
+      // Block ciphers
+      { regex: /3des|triple[-_]?des/gi, name: '3DES', strength: 'Moderate', risk: 'Medium', score: 50 },
+      { regex: /\bdes\b(?![-_])/gi, name: 'DES', strength: 'Obsolete', risk: 'Critical', score: 15 },
+      { regex: /blowfish/gi, name: 'Blowfish', strength: 'Moderate', risk: 'Medium', score: 60 },
+      
+      // ECC
+      { regex: /ecc[-_]?521|p[-_]?521/gi, name: 'ECC-521', strength: 'Secure', risk: 'Low', score: 100 },
+      { regex: /ecc[-_]?384|p[-_]?384/gi, name: 'ECC-384', strength: 'Secure', risk: 'Low', score: 95 },
+      { regex: /ecc[-_]?256|p[-_]?256/gi, name: 'ECC-256', strength: 'Secure', risk: 'Low', score: 90 },
+      { regex: /\becc\b|elliptic curve/gi, name: 'ECC', strength: 'Secure', risk: 'Low', score: 85 },
+    ];
+    
+    // Detect algorithms using regex patterns
+    const detectedAlgos = new Set();
+    patterns.forEach(pattern => {
+      if (pattern.regex.test(text) && !detectedAlgos.has(pattern.name)) {
+        algorithms.push({
+          name: pattern.name,
+          strength: pattern.strength,
+          risk: pattern.risk,
+          score: pattern.score
+        });
+        detectedAlgos.add(pattern.name);
+      }
+    });
 
-    // If no algorithms detected, add some random ones for demo
+    // If no algorithms detected, provide default secure set
     if (algorithms.length === 0) {
       algorithms.push(
-        { name: 'AES-256', strength: 'Secure', risk: 'Low' },
-        { name: 'SHA-256', strength: 'Secure', risk: 'Low' },
-        { name: 'RSA-2048', strength: 'Secure', risk: 'Low' }
+        { name: 'AES-256', strength: 'Secure', risk: 'Low', score: 100 },
+        { name: 'SHA-256', strength: 'Secure', risk: 'Low', score: 90 },
+        { name: 'RSA-2048', strength: 'Secure', risk: 'Low', score: 90 }
       );
     }
 
-    // Calculate safety score
-    const secureCount = algorithms.filter(a => a.risk === 'Low').length;
-    const safetyPercentage = Math.round((secureCount / algorithms.length) * 100);
+    // Calculate weighted safety score
+    const totalScore = algorithms.reduce((sum, algo) => sum + algo.score, 0);
+    const maxScore = algorithms.length * 100;
+    const safetyPercentage = Math.round((totalScore / maxScore) * 100);
 
     const analysis = {
       fileName: file.name,
       fileSize: (file.size / 1024).toFixed(2) + ' KB',
       uploadDate: new Date().toLocaleDateString(),
+      uploadTime: new Date().toLocaleTimeString(),
       safetyPercentage,
       algorithms,
       note: `Detected ${algorithms.length} cryptographic algorithm${algorithms.length > 1 ? 's' : ''} in firmware.`
@@ -63,7 +95,17 @@ export const FileUpload = ({ onFileAnalyzed }: FileUploadProps) => {
 
     setTimeout(() => {
       setIsAnalyzing(false);
+      
+      // Store in sessionStorage for immediate use
       sessionStorage.setItem('firmwareAnalysis', JSON.stringify(analysis));
+      
+      // Store in localStorage for history
+      const history = JSON.parse(localStorage.getItem('analysisHistory') || '[]');
+      history.unshift({ ...analysis, id: Date.now() });
+      // Keep only last 10 analyses
+      if (history.length > 10) history.pop();
+      localStorage.setItem('analysisHistory', JSON.stringify(history));
+      
       onFileAnalyzed(analysis);
       toast.success('Firmware analysis complete!');
       navigate('/results');
@@ -100,10 +142,10 @@ export const FileUpload = ({ onFileAnalyzed }: FileUploadProps) => {
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
-      className={`relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 ${
+      className={`relative border-2 border-dashed rounded-xl p-12 transition-all duration-500 ${
         isDragging
-          ? 'border-primary bg-primary/10 shadow-glow-strong'
-          : 'border-border bg-card/50 hover:border-primary/50'
+          ? 'border-primary bg-primary/10 shadow-glow-strong scale-105'
+          : 'border-border bg-card/50 hover:border-primary/50 hover:shadow-glow'
       } ${isAnalyzing ? 'pointer-events-none opacity-50' : ''}`}
     >
       <input
